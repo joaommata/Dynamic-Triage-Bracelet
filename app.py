@@ -3,17 +3,54 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
+import hashlib
+
+# Simulated doctor credentials (in a real system, use a secure database)
+DOCTORS = {
+    'admin': {
+        'password': hashlib.sha256('password123'.encode()).hexdigest(),
+        'name': 'Dr. Admin',
+        'department': 'System Administration'
+    },
+    'johndoe': {
+        'password': hashlib.sha256('doctor456'.encode()).hexdigest(),
+        'name': 'Dr. John Doe',
+        'department': 'Emergency Medicine'
+    },
+    'janesmit': {
+        'password': hashlib.sha256('nurse789'.encode()).hexdigest(),
+        'name': 'Dr. Jane Smith',
+        'department': 'Intensive Care'
+    }
+}
+
+# Authentication function
+def authenticate(username, password):
+    # Hash the input password
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    
+    # Check if username exists and password matches
+    if username in DOCTORS and DOCTORS[username]['password'] == hashed_password:
+        return DOCTORS[username]
+    return None
 
 # Simulated data generation function (replace with actual data source)
 def generate_patient_data(num_patients=20):
     patients = []
     triage_colors = ['Green', 'Yellow', 'Orange']
+    names = [
+        "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince", 
+        "Ethan Hunt", "Fiona Gallagher", "George Clooney", "Hannah Montana", 
+        "Ian McKellen", "Julia Roberts", "Kevin Hart", "Laura Croft", 
+        "Michael Jordan", "Nina Dobrev", "Oscar Wilde", "Penelope Cruz", 
+        "Quentin Tarantino", "Rachel Green", "Steve Rogers", "Tina Fey"
+    ]
     
     for i in range(num_patients):
         triage_color = np.random.choice(triage_colors, p=[0.5, 0.3, 0.2])
         patient = {
             'Patient ID': f'P{i+1:03d}',
-            'Name': f'Patient {i+1}',
+            'Name': names[i % len(names)],  # Cycle through the names list
             'Age': np.random.randint(18, 85),
             'Triage Color': triage_color,
             'Heart Rate': np.random.randint(60, 120),
@@ -41,6 +78,55 @@ def generate_time_series_data(patient_id):
         'Temperature': temperature
     })
 
+# Login Page
+def login_page():
+    st.title("Smart Triage Bracelet Dashboard")
+    st.subheader("Doctor Login")
+    
+    # Login form
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Login"):
+        # Authenticate user
+        user = authenticate(username, password)
+        
+        if user:
+            # Store user info in session state
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.session_state.user_info = user
+            st.rerun()
+        else:
+            st.error("Invalid username or password")
+
+# Logout function
+def logout():
+    # Clear session state
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.session_state.user_info = None
+    st.rerun()
+
+
+
+def load_patient_data(file_path):
+    """
+    Load patient data from CSV file with error handling
+    """
+    try:
+        # Use pandas to read the CSV file
+        df = pd.read_csv(file_path)
+        
+        # Optional: Add timestamp to show when data was last updated
+        df['last_updated'] = pd.Timestamp.now()
+        
+        return df
+    except Exception as e:
+        st.error(f"Error loading CSV file: {e}")
+        return pd.DataFrame()  # Return empty DataFrame if load fails
+
+
 # Streamlit app configuration
 def main():
     st.set_page_config(
@@ -48,6 +134,21 @@ def main():
         page_icon=":hospital:",
         layout="wide"
     )
+    
+    # Check if user is logged in
+    if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+        login_page()
+        return
+    
+    # Add logout functionality
+    st.sidebar.title("User Information")
+    st.sidebar.write(f"Logged in as: {st.session_state.user_info['name']}")
+    st.sidebar.write(f"Department: {st.session_state.user_info['department']}")
+    
+    # Logout button in sidebar
+    if st.sidebar.button("Logout"):
+        logout()
+        return
     
     # App title
     st.title("Smart Triage Bracelet Patient Monitoring System")
@@ -124,7 +225,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Rest of the code remains the same as in the original script
     # Tracking state
     if 'selected_patient_id' not in st.session_state:
         st.session_state.selected_patient_id = None
@@ -209,36 +309,63 @@ def main():
         
         with patient_grid:
             # Use columns to create a responsive grid
-            cols = st.columns(3)  # Changed to 3 columns due to removal of Black
+            cols = st.columns(3)
             
             for i, (_, patient) in enumerate(patient_data.iterrows()):
                 # Determine the column for this patient
                 col = cols[i % 3]
                 
                 with col:
+                    # Color mapping with slightly lighter shades for background
+                    color_map_bg = {
+                        'Green': '#F4FFF4',   # Lighter Green
+                        'Yellow': '#FFFBE6',  # Lighter Yellow
+                        'Orange': '#FFF2F0'   # Lighter Orange
+                    }
+                    
                     # Card-like display with consistent styling
                     card_style = f"""
                     background-color: white;
                     border: 3px solid {color_map[patient['Triage Color']]};
                     border-radius: 10px;
-                    padding: 15px;
+                    padding: 0;
                     margin-bottom: 15px;
                     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    overflow: hidden;
                     """
                     
-                    # Use st.markdown to create a card
+                    # Status bar style
+                    status_bar_style = f"""
+                    background-color: {color_map[patient['Triage Color']]};
+                    color: white;
+                    padding: 10px;
+                    text-align: center;
+                    font-weight: bold;
+                    """
+                    
+                    # Card content style
+                    content_style = f"""
+                    padding: 15px;
+                    background-color: {color_map_bg[patient['Triage Color']]};
+                    """
+                    
+                    # Use st.markdown to create a card with prominent status
                     card_html = f"""
                     <div style="{card_style}">
-                        <h4>Patient {patient['Patient ID']}</h4>
-                        <p><strong>Age:</strong> {patient['Age']}</p>
-                        <p><strong>Status:</strong> <span style="color:{color_map[patient['Triage Color']]};">{patient['Triage Color']}</span></p>
-                        <p><strong>Heart Rate:</strong> {patient['Heart Rate']} bpm</p>
-                        <p><strong>Temp:</strong> {patient['Temperature']}°C</p>
+                        <div style="{status_bar_style}">
+                            {patient['Name']} 
+                        </div>
+                        <div style="{content_style}">
+                            <h4>{patient['Name']}</h4>
+                            <p><strong>👵🏻 Age:</strong> {patient['Age']}</p>
+                            <p><strong>🫀 Heart Rate:</strong> {patient['Heart Rate']} bpm</p>
+                            <p><strong>🌡️ Temp:</strong> {patient['Temperature']}°C</p>
+                        </div>
                     </div>
                     """
                     
                     # Button to select patient
-                    selected = st.button(f"Select {patient['Patient ID']}", 
+                    selected = st.button(f"Select {patient['Name']}", 
                                          key=f"select_{patient['Patient ID']}", 
                                          type='primary', 
                                          use_container_width=True)
