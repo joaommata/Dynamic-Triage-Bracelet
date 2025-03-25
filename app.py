@@ -7,10 +7,10 @@ import numpy as np
 # Simulated data generation function (replace with actual data source)
 def generate_patient_data(num_patients=20):
     patients = []
-    triage_colors = ['Green', 'Yellow', 'Red', 'Black']
+    triage_colors = ['Green', 'Yellow', 'Orange']
     
     for i in range(num_patients):
-        triage_color = np.random.choice(triage_colors, p=[0.5, 0.3, 0.15, 0.05])
+        triage_color = np.random.choice(triage_colors, p=[0.5, 0.3, 0.2])
         patient = {
             'Patient ID': f'P{i+1:03d}',
             'Name': f'Patient {i+1}',
@@ -60,30 +60,71 @@ def main():
     # Calculate triage color metrics
     triage_metrics = patient_data['Triage Color'].value_counts()
     
-    # Create a row for triage metrics
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-    
-    with metric_col1:
-        st.metric("Green Patients", triage_metrics.get('Green', 0), 
-                  help="Patients with stable condition")
-    with metric_col2:
-        st.metric("Yellow Patients", triage_metrics.get('Yellow', 0), 
-                  help="Patients requiring close monitoring")
-    with metric_col3:
-        st.metric("Red Patients", triage_metrics.get('Red', 0), 
-                  help="Patients in critical condition")
-    with metric_col4:
-        st.metric("Black Patients", triage_metrics.get('Black', 0), 
-                  help="Patients with most severe condition")
-    
     # Color mapping for triage status
     color_map = {
         'Green': '#4CAF50',   # Green
         'Yellow': '#FFC107',  # Amber
-        'Red': '#F44336',     # Red
-        'Black': '#000000'    # Black
+        'Orange': '#FF5722'   # Orange
     }
     
+    # Create a row for triage metrics with color-coded styling
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    
+    with metric_col1:
+        # Green patients with green styling
+        st.markdown(f"""
+        <div style="background-color: rgba(76, 175, 80, 0.1); 
+                    border: 2px solid {color_map['Green']}; 
+                    border-radius: 10px; 
+                    padding: 10px; 
+                    text-align: center;">
+            <h3 style="color: {color_map['Green']}; margin-bottom: 5px;">Green Patients</h3>
+            <div style="font-size: 2.5em; 
+                        color: {color_map['Green']}; 
+                        font-weight: bold;">
+                {triage_metrics.get('Green', 0)}
+            </div>
+            <p style="color: {color_map['Green']}; margin-top: 5px;">Stable Condition</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with metric_col2:
+        # Yellow patients with yellow styling
+        st.markdown(f"""
+        <div style="background-color: rgba(255, 193, 7, 0.1); 
+                    border: 2px solid {color_map['Yellow']}; 
+                    border-radius: 10px; 
+                    padding: 10px; 
+                    text-align: center;">
+            <h3 style="color: {color_map['Yellow']}; margin-bottom: 5px;">Yellow Patients</h3>
+            <div style="font-size: 2.5em; 
+                        color: {color_map['Yellow']}; 
+                        font-weight: bold;">
+                {triage_metrics.get('Yellow', 0)}
+            </div>
+            <p style="color: {color_map['Yellow']}; margin-top: 5px;">Needs Monitoring</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with metric_col3:
+        # Orange patients with orange styling
+        st.markdown(f"""
+        <div style="background-color: rgba(255, 87, 34, 0.1); 
+                    border: 2px solid {color_map['Orange']}; 
+                    border-radius: 10px; 
+                    padding: 10px; 
+                    text-align: center;">
+            <h3 style="color: {color_map['Orange']}; margin-bottom: 5px;">Orange Patients</h3>
+            <div style="font-size: 2.5em; 
+                        color: {color_map['Orange']}; 
+                        font-weight: bold;">
+                {triage_metrics.get('Orange', 0)}
+            </div>
+            <p style="color: {color_map['Orange']}; margin-top: 5px;">Critical Condition</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Rest of the code remains the same as in the original script
     # Tracking state
     if 'selected_patient_id' not in st.session_state:
         st.session_state.selected_patient_id = None
@@ -168,11 +209,11 @@ def main():
         
         with patient_grid:
             # Use columns to create a responsive grid
-            cols = st.columns(4)  # 4 columns for wider coverage
+            cols = st.columns(3)  # Changed to 3 columns due to removal of Black
             
             for i, (_, patient) in enumerate(patient_data.iterrows()):
                 # Determine the column for this patient
-                col = cols[i % 4]
+                col = cols[i % 3]
                 
                 with col:
                     # Card-like display with consistent styling
