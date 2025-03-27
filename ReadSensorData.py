@@ -282,7 +282,7 @@ class ArduinoSensorReader:
 # Example usage    
 if __name__ == "__main__":
     # To check port run on terminal: ls /dev/tty.*
-    port = '/dev/tty.usbserial-A10LUUR2'
+    port = '/dev/tty.usbserial-AQ01PO2L'
     sensor_reader = ArduinoSensorReader(port=port)
     
     if sensor_reader.connect():

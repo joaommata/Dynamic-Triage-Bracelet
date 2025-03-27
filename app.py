@@ -5,7 +5,34 @@ import plotly.graph_objs as go
 import numpy as np
 import hashlib
 import time
+import serial
+import time
 
+PORT = '/dev/tty.usbserial-A10LUUR2'  # Adjust for your system (e.g., 'COM3' on Windows)
+BAUD_RATE = 9600
+
+def send_command(command):
+    try:
+        with serial.Serial(PORT, BAUD_RATE, timeout=1) as ser:
+            time.sleep(2)  # Wait for Arduino to initialize
+            ser.write(command.encode())  # Send character
+            print(f"Sent: {command}")
+            time.sleep(0.1)  # Wait for response
+            # Read response from Arduino
+            response = ser.readline().decode().strip()
+    except serial.SerialException as e:
+        print(f"Error: {e}")
+
+def set_color(color):
+    """Set the color of the LED strip"""
+    if color == 'yellow':
+        send_command('0')
+    if color == 'green':
+        send_command('1')
+    if color == 'orange':
+        send_command('2')
+    
+    
 # Simulated doctor credentials (in a real system, use a secure database)
 DOCTORS = {
     'admin': {
@@ -45,17 +72,12 @@ def generate_time_series_data(patient_id):
 # Simulated data generation function (replace with actual data source)
 def generate_patient_data(num_patients=20):
     patients = []
-    triage_colors = ['Green', 'Yellow', 'Orange']
+    triage_colors = ['Green', 'Yellow', 'Orange', 'Gray']
     names = [
-        "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince", 
-        "Ethan Hunt", "Fiona Gallagher", "George Clooney", "Hannah Montana", 
-        "Ian McKellen", "Julia Roberts", "Kevin Hart", "Laura Croft", 
-        "Michael Jordan", "Nina Dobrev", "Oscar Wilde", "Penelope Cruz", 
-        "Quentin Tarantino", "Rachel Green", "Steve Rogers", "Tina Fey"
-    ]
+        "Alice Johnson", "Bob Smith", "Charlie Brown"]
     
     for i in range(num_patients):
-        triage_color = np.random.choice(triage_colors, p=[0.5, 0.3, 0.2])
+        triage_color = np.random.choice(triage_colors, p=[0.3, 0.3, 0.2,0.2])
         patient = {
             'Patient ID': f'P{i+1:03d}',
             'Name': names[i % len(names)],  # Cycle through the names list
@@ -64,9 +86,9 @@ def generate_patient_data(num_patients=20):
             'Heart Rate': np.random.randint(60, 120),
             'Temperature': round(np.random.uniform(36.0, 40.0), 1),
             'PPD Data': {
-                'Respiratory Rate': np.random.randint(12, 30),
-                'Oxygen Saturation': np.random.randint(85, 100),
-                'Blood Pressure': f"{np.random.randint(90, 180)}/{np.random.randint(60, 110)}"
+            'Respiratory Rate': np.random.randint(12, 30),
+            'Oxygen Saturation': np.random.randint(85, 100),
+            'Blood Pressure': f"{np.random.randint(90, 180)}/{np.random.randint(60, 110)}"
             }
         }
         patients.append(patient)
@@ -139,6 +161,7 @@ def main():
     
     # Color mapping for triage status
     color_map = {
+        'Gray': '#B0BEC5',    # Gray
         'Green': '#4CAF50',   # Green
         'Yellow': '#FFC107',  # Amber
         'Orange': '#FF5722'}   # Orange
@@ -211,6 +234,17 @@ def main():
         
         st.header(f"Patient {selected_patient['Patient ID']} Details")
         
+        # Dropdown to select LED color
+        st.subheader("Set LED Color")
+        color_options = ['yellow', 'green', 'orange']
+        selected_color = st.selectbox("Select LED Color", color_options)
+
+        if st.button("Set Color"):
+            set_color(selected_color)
+            st.success(f"LED color set to {selected_color.capitalize()}")
+            # Save the selected color in session state
+            st.session_state.selected_color = selected_color
+        
         # Create columns for patient overview
         col1, col2, col3 = st.columns(3)
         
@@ -229,7 +263,7 @@ def main():
             st.subheader("Triage Classification")
             # Color-coded triage status
             triage_color = selected_patient['Triage Color']
-            st.markdown(f"**Status:** <span style='color:{color_map[triage_color]};font-weight:bold'>{triage_color}</span>", 
+            st.markdown(f"**Status:** <span style='color:{color_map[selected_color.capitalize()]};font-weight:bold'>{selected_color.capitalize()}</span>", 
                         unsafe_allow_html=True)
         
         # PPD Data Section
@@ -295,7 +329,8 @@ def main():
                     color_map_bg = {
                         'Green': '#F4FFF4',   # Lighter Green
                         'Yellow': '#FFFBE6',  # Lighter Yellow
-                        'Orange': '#FFF2F0'   # Lighter Orange
+                        'Orange': '#FFF2F0',
+                        'Gray': '#F5F5F5' # Lighter Orange
                     }
                     
                     # Card-like display with consistent styling
