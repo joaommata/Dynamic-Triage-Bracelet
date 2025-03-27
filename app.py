@@ -7,6 +7,8 @@ import hashlib
 import time
 import serial
 import time
+from ReadSensorData import ArduinoSensorReader
+
 
 PORT = '/dev/tty.usbserial-A10LUUR2'  # Adjust for your system (e.g., 'COM3' on Windows)
 BAUD_RATE = 9600
@@ -31,8 +33,7 @@ def set_color(color):
         send_command('1')
     if color == 'orange':
         send_command('2')
-    
-    
+        
 # Simulated doctor credentials (in a real system, use a secure database)
 DOCTORS = {
     'admin': {
@@ -70,21 +71,21 @@ def generate_time_series_data(patient_id):
     return data[['Time', 'PPG', 'Temperature']]
 
 # Simulated data generation function (replace with actual data source)
-def generate_patient_data(num_patients=20):
+def generate_patient_data(num_patients=8):
     patients = []
-    triage_colors = ['Green', 'Yellow', 'Orange', 'Gray']
+    triage_colors = ['Green', 'Yellow', 'Orange']
     names = [
         "Alice Johnson", "Bob Smith", "Charlie Brown"]
     
     for i in range(num_patients):
-        triage_color = np.random.choice(triage_colors, p=[0.3, 0.3, 0.2,0.2])
+        triage_color = np.random.choice(triage_colors, p=[0.3, 0.3, 0.4])
         patient = {
             'Patient ID': f'P{i+1:03d}',
             'Name': names[i % len(names)],  # Cycle through the names list
             'Age': np.random.randint(18, 85),
             'Triage Color': triage_color,
             'Heart Rate': np.random.randint(60, 120),
-            'Temperature': round(np.random.uniform(36.0, 40.0), 1),
+            'Temperature': round(np.random.uniform(36.0, 38.9), 1),
             'PPD Data': {
             'Respiratory Rate': np.random.randint(12, 30),
             'Oxygen Saturation': np.random.randint(85, 100),
@@ -125,6 +126,32 @@ def logout():
     st.session_state.user_info = None
     st.rerun()
 
+def check_critical_conditions(patient_data):
+    """
+    Check for critical patient conditions and generate alerts
+    
+    Criteria for alerts:
+    1. Orange triage color
+    2. Extreme vital sign values
+    """
+    critical_alerts = []
+    
+    for _, patient in patient_data.iterrows():
+        # Check triage color        
+        # Additional specific condition checks
+        if patient['Temperature'] > 38.3:
+            critical_alerts.append({
+                'patient_id': patient['Patient ID'],
+                'name': patient['Name'],
+                'message': f"CRITICAL Fever Alert: {patient['Temperature']}°C",
+                'details': {
+                    'Temperature': f"{patient['Temperature']}°C",
+                    'Recommendation': 'Immediate cooling and medical intervention'
+                }
+            })
+    return critical_alerts
+
+
 # Streamlit app configuration
 def main():
     st.set_page_config(
@@ -132,12 +159,54 @@ def main():
         page_icon=":hospital:",
         layout="wide"
     )
+        # Or for more direct theme control
+    st.markdown("""
+    <style>
+    .stApp {
+        background-color: #FFFFFF;
+        color: #262730;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+        
     
     # Check if user is logged in
     if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         login_page()
+        
         return
+    # Generate patient data if not already in session
+    if 'patient_data' not in st.session_state:
+        st.session_state.patient_data = generate_patient_data()
     
+    # Check for critical conditions and display alerts
+    critical_alerts = check_critical_conditions(st.session_state.patient_data)
+    
+        # Display critical alerts with more prominent notifications
+    if critical_alerts:
+        # Create an expander for all critical alerts
+        with st.expander("🚨 CRITICAL PATIENT ALERTS", expanded=True):
+            for alert in critical_alerts:
+                # Use st.error for high-priority alerts
+                st.error(f"🚨 {alert['name']} - {alert['message']}")
+                
+                # Create a details view with action buttons
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        # Display detailed patient information
+                        st.markdown("**Patient Details:**")
+                        for key, value in alert['details'].items():   
+                            st.markdown(f"**{key}:** {value}")
+                    with col2:
+                        # Action button to view patient details
+                        if st.button(f"View {alert['name']}", key=alert['patient_id']):
+                            # Set the selected patient ID in session state
+                            st.session_state.selected_patient_id = alert['patient_id']
+                            st.rerun()
+    
+
     # Add logout functionality
     st.sidebar.title("User Information")
     st.sidebar.write(f"Logged in as: {st.session_state.user_info['name']}")
@@ -161,7 +230,6 @@ def main():
     
     # Color mapping for triage status
     color_map = {
-        'Gray': '#B0BEC5',    # Gray
         'Green': '#4CAF50',   # Green
         'Yellow': '#FFC107',  # Amber
         'Orange': '#FF5722'}   # Orange
@@ -242,8 +310,16 @@ def main():
         if st.button("Set Color"):
             set_color(selected_color)
             st.success(f"LED color set to {selected_color.capitalize()}")
-            # Save the selected color in session state
-            st.session_state.selected_color = selected_color
+            
+            # Update the patient's triage color in the dataframe
+            patient_idx = patient_data.index[patient_data['Patient ID'] == st.session_state.selected_patient_id].tolist()[0]
+            patient_data.at[patient_idx, 'Triage Color'] = selected_color.capitalize()
+            
+            # Update the session state data
+            st.session_state.patient_data = patient_data
+            
+        # Save the selected color in session state
+        st.session_state.selected_color = selected_color
         
         # Create columns for patient overview
         col1, col2, col3 = st.columns(3)
@@ -261,9 +337,8 @@ def main():
         
         with col3:
             st.subheader("Triage Classification")
-            # Color-coded triage status
             triage_color = selected_patient['Triage Color']
-            st.markdown(f"**Status:** <span style='color:{color_map[selected_color.capitalize()]};font-weight:bold'>{selected_color.capitalize()}</span>", 
+            st.markdown(f"**Status:** <span style='color:{color_map[triage_color]};font-weight:bold'>{triage_color}</span>", 
                         unsafe_allow_html=True)
         
         # PPD Data Section
@@ -286,27 +361,32 @@ def main():
         st.subheader("Time Series Monitoring")
         time_series_data = generate_time_series_data(st.session_state.selected_patient_id)
         
-        # Heart Rate Plot
-        fig_heart_rate = px.line(
-            time_series_data, 
-            x='Time', 
-            y='PPG', 
-            title='Heart Rate Over Time',
-            labels={'Heart Rate': 'Heart Rate (bpm)'}
-        )
-        st.plotly_chart(fig_heart_rate, use_container_width=True)
+        # Create two columns for plots
+        ts_col1, ts_col2 = st.columns(2)
         
-        # Temperature Plot
-        fig_temperature = px.line(
-            time_series_data, 
-            x='Time', 
-            y='Temperature', 
-            title='Temperature Over Time',
-            labels={'Temperature': 'Temperature (°C)'}
-        )
-        st.plotly_chart(fig_temperature, use_container_width=True)
+        with ts_col1:
+            # Heart Rate Plot
+            fig_heart_rate = px.line(
+                time_series_data, 
+                x='Time', 
+                y='PPG', 
+                title='Heart Rate Over Time',
+                labels={'Heart Rate': 'Heart Rate (bpm)'}
+            )
+            fig_heart_rate.update_traces(line_color='#6495ED')  # Red color
+            st.plotly_chart(fig_heart_rate, use_container_width=True)
         
-        # Add a button to go back to patient overview
+        with ts_col2:
+            # Temperature Plot
+            fig_temperature = px.line(
+                time_series_data, 
+                x='Time', 
+                y='Temperature', 
+                title='Temperature Over Time',
+                labels={'Temperature': 'Temperature (°C)'}
+            )
+            fig_temperature.update_traces(line_color='#DE3163')  # Blue color
+            st.plotly_chart(fig_temperature, use_container_width=True)        # Add a button to go back to patient overview
         if st.button("Back to Patient Overview"):
             st.session_state.selected_patient_id = None
             st.rerun()
@@ -330,7 +410,6 @@ def main():
                         'Green': '#F4FFF4',   # Lighter Green
                         'Yellow': '#FFFBE6',  # Lighter Yellow
                         'Orange': '#FFF2F0',
-                        'Gray': '#F5F5F5' # Lighter Orange
                     }
                     
                     # Card-like display with consistent styling
@@ -378,8 +457,7 @@ def main():
                         st.rerun()
     
     # Add refresh mechanism
-    time.sleep(2)
+    time.sleep(0.5)
     st.rerun()
-
 if __name__ == "__main__":
     main()
