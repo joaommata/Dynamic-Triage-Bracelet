@@ -120,8 +120,3 @@ This project is licensed under the **MIT License** – see the `LICENSE` file fo
 
 ## 🙌 Acknowledgments  
 - This project was developed as part of a **healthcare innovation initiative**  
-- Special thanks to all **healthcare professionals** who provided insights and feedback  
-
----
-
-This README is now structured, engaging, and professional while maintaining readability. Let me know if you'd like further refinements! 🚀
