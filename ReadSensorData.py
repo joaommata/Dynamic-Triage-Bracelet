@@ -83,12 +83,18 @@ class ArduinoSensorReader:
                             self.temp_buffer.append(temp_value)
                             self.time_buffer.append(current_time)
                             
-                            print(f"Time: {current_time:.2f}s, PPG: {ppg_value}, Temp: {temp_value:.2f}°C")
+                            # Check if buffer is full
+                            if len(self.ppg_buffer) == self.buffer_size:
+                                print("Buffer full. Printing data:")
+                                self.print_buffer()
+                                self.plot_buffer()
+                                self.save_data('sensor_data.csv')
+                                self.clear_buffers()
+                                
                         else:
                             print(f"Invalid data format: {line}")
                     except ValueError:
                         print(f"Invalid data received: {line}")
-                
                 # Small delay to prevent CPU overload
                 time.sleep(0.01)
                 
@@ -97,9 +103,56 @@ class ArduinoSensorReader:
         except Exception as e:
             print(f"Error reading data: {e}")
             
+    def print_buffer(self):
+        """Print the contents of the buffers"""
+        print("Time (s), PPG, Temperature (°C)")
+        for time_val, ppg_val, temp_val in zip(self.time_buffer, self.ppg_buffer, self.temp_buffer):
+            print(f"{time_val:.2f}, {ppg_val}, {temp_val:.2f}")
+            
+    def plot_buffer(self):
+        """Plot the contents of the buffers and calculate average temperature"""
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        
+        # Plot PPG signal
+        ax1.plot(list(self.time_buffer), list(self.ppg_buffer), 'b-')
+        ax1.set_title("PPG Signal")
+        ax1.set_ylabel("PPG Value")
+        ax1.grid(True)
+        
+        # Plot temperature signal with moving average
+        temp_array = np.array(self.temp_buffer)
+        window_size = 10  # Define the window size for moving average
+        if len(temp_array) >= window_size:
+            moving_avg_temp = np.convolve(temp_array, np.ones(window_size)/window_size, mode='valid')
+            time_array = np.array(self.time_buffer)[window_size-1:]  # Adjust time array for moving average
+        else:
+            moving_avg_temp = temp_array
+            time_array = np.array(self.time_buffer)
+        
+        ax2.plot(list(self.time_buffer), list(self.temp_buffer), 'r-', label='Raw Temperature')
+        ax2.plot(time_array, moving_avg_temp, 'g-', label='Moving Avg Temperature')
+        ax2.set_title("Temperature")
+        ax2.set_xlabel("Time (seconds)")
+        ax2.set_ylabel("Temperature (°C)")
+        ax2.grid(True)
+        ax2.legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Calculate and print average temperature
+        avg_temp = np.mean(temp_array)
+        print(f"Average temperature: {avg_temp:.2f}°C")
+            
+    def clear_buffers(self):
+        """Clear the contents of the buffers"""
+        self.ppg_buffer.clear()
+        self.temp_buffer.clear()
+        self.time_buffer.clear()
+        
     def save_data(self, filename):
         """
-        Save collected sensor data to a CSV file
+        Save collected sensor data to a CSV file, removing the first 5 entries
         
         Args:
             filename (str): Name of the file to save data to
@@ -107,13 +160,24 @@ class ArduinoSensorReader:
         if not self.ppg_buffer:
             print("No data to save")
             return
-            
+        
+        # Convert to list if not already a list
+        time_buffer = list(self.time_buffer) if not isinstance(self.time_buffer, list) else self.time_buffer
+        ppg_buffer = list(self.ppg_buffer) if not isinstance(self.ppg_buffer, list) else self.ppg_buffer
+        temp_buffer = list(self.temp_buffer) if not isinstance(self.temp_buffer, list) else self.temp_buffer
+        
+        # Slice the buffers to remove the first 10 entries
+        start_index = min(5, len(ppg_buffer))
+        time_data = time_buffer[start_index:]
+        ppg_data = ppg_buffer[start_index:]
+        temp_data = temp_buffer[start_index:]
+        
         try:
             with open(filename, 'w') as f:
                 f.write("Time,PPG,Temperature\n")
-                for time_val, ppg_val, temp_val in zip(self.time_buffer, self.ppg_buffer, self.temp_buffer):
+                for time_val, ppg_val, temp_val in zip(time_data, ppg_data, temp_data):
                     f.write(f"{time_val:.3f},{ppg_val},{temp_val:.2f}\n")
-            print(f"Data saved to {filename}")
+            print(f"Data saved to {filename}, first {start_index} entries removed")
         except Exception as e:
             print(f"Error saving data: {e}")
             
@@ -131,15 +195,27 @@ class ArduinoSensorReader:
         ax1.set_ylabel("PPG Value")
         ax1.grid(True)
         
-        # Plot temperature signal
-        ax2.plot(list(self.time_buffer), list(self.temp_buffer), 'r-')
+        # Plot temperature signal with moving average
+        temp_array = np.array(self.temp_buffer)
+        window_size = 10  # Define the window size for moving average
+        if len(temp_array) >= window_size:
+            moving_avg_temp = np.convolve(temp_array, np.ones(window_size)/window_size, mode='valid')
+            time_array = np.array(self.time_buffer)[window_size-1:]  # Adjust time array for moving average
+        else:
+            moving_avg_temp = temp_array
+            time_array = np.array(self.time_buffer)
+        
+        ax2.plot(list(self.time_buffer), list(self.temp_buffer), 'r-', label='Raw Temperature')
+        ax2.plot(time_array, moving_avg_temp, 'g-', label='Moving Avg Temperature')
         ax2.set_title("Temperature")
         ax2.set_xlabel("Time (seconds)")
         ax2.set_ylabel("Temperature (°C)")
         ax2.grid(True)
+        ax2.legend()
         
         plt.tight_layout()
         plt.show()
+
         
     def analyze_heart_rate(self):
         """Simple heart rate analysis from PPG data"""
@@ -203,18 +279,24 @@ class ArduinoSensorReader:
         print(f"Average temperature: {avg_temp:.2f}°C")
         return avg_temp
     
-
-# Example usage
+# Example usage    
 if __name__ == "__main__":
     # To check port run on terminal: ls /dev/tty.*
-    
-    port = '/dev/tty.usbserial-AQ01PO2L'
+    port = '/dev/tty.usbserial-A10LUUR2'
     sensor_reader = ArduinoSensorReader(port=port)
     
     if sensor_reader.connect():
+        # Read data continuously for calibration
+        sensor_reader.read_data(duration=10)  # Read for 10 seconds to calibrate
+        # Store the mean temperature and PPG signal as calibration values
+        calibrating_temperature = sensor_reader.get_average_temperature()
+        calibrating_ppg = np.mean(list(sensor_reader.ppg_buffer))
+        print(f"Calibrating Temperature: {calibrating_temperature:.2f}°C")
+        print(f"Calibrating PPG: {calibrating_ppg:.2f}")
+        
         try:
-            # Read data for 30 seconds
-            sensor_reader.read_data(duration=10)
+            # Continue reading data
+            sensor_reader.read_data()
             
             # Analyze heart rate
             sensor_reader.analyze_heart_rate()

@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objs as go
 import numpy as np
 import hashlib
+import time
 
 # Simulated doctor credentials (in a real system, use a secure database)
 DOCTORS = {
@@ -33,6 +34,13 @@ def authenticate(username, password):
     if username in DOCTORS and DOCTORS[username]['password'] == hashed_password:
         return DOCTORS[username]
     return None
+
+# Generate time series data from CSV
+def generate_time_series_data(patient_id):
+    # Load the CSV file containing time series data
+    csv_file_path = 'sensor_data.csv'
+    data = pd.read_csv(csv_file_path)
+    return data[['Time', 'PPG', 'Temperature']]
 
 # Simulated data generation function (replace with actual data source)
 def generate_patient_data(num_patients=20):
@@ -65,19 +73,6 @@ def generate_patient_data(num_patients=20):
     
     return pd.DataFrame(patients)
 
-# Generate historical time series data for plotting
-def generate_time_series_data(patient_id):
-    # Simulate time series data for heart rate and temperature
-    timestamps = pd.date_range(end=pd.Timestamp.now(), periods=24, freq='H')
-    heart_rate = np.random.normal(80, 10, 24)
-    temperature = np.random.normal(37, 0.5, 24)
-    
-    return pd.DataFrame({
-        'Timestamp': timestamps,
-        'Heart Rate': heart_rate,
-        'Temperature': temperature
-    })
-
 # Login Page
 def login_page():
     st.title("Smart Triage Bracelet Dashboard")
@@ -107,25 +102,6 @@ def logout():
     st.session_state.username = None
     st.session_state.user_info = None
     st.rerun()
-
-
-
-def load_patient_data(file_path):
-    """
-    Load patient data from CSV file with error handling
-    """
-    try:
-        # Use pandas to read the CSV file
-        df = pd.read_csv(file_path)
-        
-        # Optional: Add timestamp to show when data was last updated
-        df['last_updated'] = pd.Timestamp.now()
-        
-        return df
-    except Exception as e:
-        st.error(f"Error loading CSV file: {e}")
-        return pd.DataFrame()  # Return empty DataFrame if load fails
-
 
 # Streamlit app configuration
 def main():
@@ -165,8 +141,7 @@ def main():
     color_map = {
         'Green': '#4CAF50',   # Green
         'Yellow': '#FFC107',  # Amber
-        'Orange': '#FF5722'   # Orange
-    }
+        'Orange': '#FF5722'}   # Orange
     
     # Create a row for triage metrics with color-coded styling
     metric_col1, metric_col2, metric_col3 = st.columns(3)
@@ -280,8 +255,8 @@ def main():
         # Heart Rate Plot
         fig_heart_rate = px.line(
             time_series_data, 
-            x='Timestamp', 
-            y='Heart Rate', 
+            x='Time', 
+            y='PPG', 
             title='Heart Rate Over Time',
             labels={'Heart Rate': 'Heart Rate (bpm)'}
         )
@@ -290,7 +265,7 @@ def main():
         # Temperature Plot
         fig_temperature = px.line(
             time_series_data, 
-            x='Timestamp', 
+            x='Time', 
             y='Temperature', 
             title='Temperature Over Time',
             labels={'Temperature': 'Temperature (°C)'}
@@ -329,18 +304,10 @@ def main():
                     border: 3px solid {color_map[patient['Triage Color']]};
                     border-radius: 10px;
                     padding: 0;
-                    margin-bottom: 15px;
+                    margin-bottom: 25px;
+                    margin-top: -10px;
                     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                     overflow: hidden;
-                    """
-                    
-                    # Status bar style
-                    status_bar_style = f"""
-                    background-color: {color_map[patient['Triage Color']]};
-                    color: white;
-                    padding: 10px;
-                    text-align: center;
-                    font-weight: bold;
                     """
                     
                     # Card content style
@@ -352,9 +319,6 @@ def main():
                     # Use st.markdown to create a card with prominent status
                     card_html = f"""
                     <div style="{card_style}">
-                        <div style="{status_bar_style}">
-                            {patient['Name']} 
-                        </div>
                         <div style="{content_style}">
                             <h4>{patient['Name']}</h4>
                             <p><strong>👵🏻 Age:</strong> {patient['Age']}</p>
@@ -363,12 +327,12 @@ def main():
                         </div>
                     </div>
                     """
-                    
-                    # Button to select patient
+                    # Button to select patient with color matching the triage status
                     selected = st.button(f"Select {patient['Name']}", 
                                          key=f"select_{patient['Patient ID']}", 
                                          type='primary', 
-                                         use_container_width=True)
+                                         use_container_width=True,
+                                         help=f"Select {patient['Name']}")
                     
                     # Render the card
                     st.markdown(card_html, unsafe_allow_html=True)
@@ -377,6 +341,10 @@ def main():
                     if selected:
                         st.session_state.selected_patient_id = patient['Patient ID']
                         st.rerun()
+    
+    # Add refresh mechanism
+    time.sleep(2)
+    st.rerun()
 
 if __name__ == "__main__":
     main()
