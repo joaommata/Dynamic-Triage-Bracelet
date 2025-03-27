@@ -1,7 +1,3 @@
-Here's your formatted README with proper Markdown structure and emojis for better readability:  
-
----
-
 # 🚑 Dynamic Triage Bracelet  
 
 ## 📝 Description  
